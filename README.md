@@ -1,4 +1,5 @@
-# Homework #1: D3 Simple
+# Homework #1: D3 Simple - Change 1
+
 
 The purpose of this homework is to teach you some basic grammar and functionalities contained in D3.js:
 
