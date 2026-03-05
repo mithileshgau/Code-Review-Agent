@@ -10,42 +10,11 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: "Install OpenCode CLI"
-      shell: bash
-      run: |
-        curl -fsSL https://opencode.ai/install | bash
-
-    - name: "Analyze Diff"
-      shell: bash
+    - name: Run OpenCode Review
+      uses: anomalyco/opencode/github@latest
       env:
         OPENCODE_API_KEY: ${{ inputs.opencode_api_key }}
-      run: |
-        git fetch origin ${{ github.event.pull_request.base.sha }}
-        git diff ${{ github.event.pull_request.base.sha }}...HEAD > pr_diff.txt
-        
-        RULES_PATH="${{ github.action_path }}/AGENTS.md"
-        
-        echo "=== DIAGNOSTICS ==="
-        echo "Check if rules exist: $(ls -la "$RULES_PATH" 2>/dev/null || echo "MISSING")"
-        echo "Review Depth: ${{ inputs.review_depth }}"
-        echo "Diff Size: $(stat -c%s "pr_diff.txt" 2>/dev/null || echo "0") bytes"
-        echo "==================="
-
-        if [ ! -s pr_diff.txt ]; then
-          echo "### AI Review: No changes detected." > report.md
-        else
-          # Use 'run' subcommand for non-interactive execution and --prompt for the instructions
-          opencode run --prompt "Review this diff using the rules in $RULES_PATH. Depth: ${{ inputs.review_depth }}" < pr_diff.txt > report.md 2>&1 || {
-            echo "### ⚠️ OpenCode CLI Error" > error_header.md
-            cat error_header.md report.md > final_report.md
-            mv final_report.md report.md
-            echo "Opencode failed. See report.md for details."
-          }
-        fi
-
-    - name: "Post PR Comment"
-      shell: bash
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-        gh pr comment ${{ github.event.pull_request.number }} --body-file report.md
+      with:
+        model: opencode/big-pickle
+        # Point to the AGENTS.md file inside this Hub repository
+        prompt: "Use the 'Senior Architect' agent defined in ${{ github.action_path }}/AGENTS.md to review this PR. Provide the output as a markdown table with columns: File, Issue, Severity, Suggested Fix."
