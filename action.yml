@@ -19,8 +19,8 @@ runs:
     - name: "Analyze Diff"
       shell: bash
       run: |
-        git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
-        git diff ${{ github.base_ref }}...HEAD > pr_diff.txt
+        set -x
+        git diff ${{ github.event.pull_request.base.sha }}...HEAD > pr_diff.txt
         opencode -p "Review this diff using the rules in ${{ github.action_path }}/AGENTS.md. Depth: ${{ inputs.review_depth }}" < pr_diff.txt > report.md
 
     - name: "Post PR Comment"
