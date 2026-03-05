@@ -34,9 +34,8 @@ runs:
         if [ ! -s pr_diff.txt ]; then
           echo "### AI Review: No changes detected." > report.md
         else
-          # Capture both stdout and stderr to the report file for debugging
-          echo "Running review..."
-          opencode -p "Review this diff using the rules in $RULES_PATH. Depth: ${{ inputs.review_depth }}" < pr_diff.txt > report.md 2>&1 || {
+          # Use 'run' subcommand for non-interactive execution and --prompt for the instructions
+          opencode run --prompt "Review this diff using the rules in $RULES_PATH. Depth: ${{ inputs.review_depth }}" < pr_diff.txt > report.md 2>&1 || {
             echo "### ⚠️ OpenCode CLI Error" > error_header.md
             cat error_header.md report.md > final_report.md
             mv final_report.md report.md
