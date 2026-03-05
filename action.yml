@@ -14,10 +14,11 @@ runs:
       shell: bash
       run: |
         curl -fsSL https://opencode.ai/install | bash
-        echo "OPENCODE_API_KEY=${{ inputs.opencode_api_key }}" >> $GITHUB_ENV
 
     - name: "Analyze Diff"
       shell: bash
+      env:
+        OPENCODE_API_KEY: ${{ inputs.opencode_api_key }}
       run: |
         set -x
         git fetch origin ${{ github.event.pull_request.base.sha }}
