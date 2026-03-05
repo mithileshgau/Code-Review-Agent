@@ -43,6 +43,8 @@ jobs:
     permissions:
       contents: read
       pull-requests: write # Required for the agent to post the review comment
+      issues: write        # Required for certain OpenCode operations
+      id-token: write     # REQUIRED: Required for OIDC token authentication
     
     steps:
       - name: Checkout Code
