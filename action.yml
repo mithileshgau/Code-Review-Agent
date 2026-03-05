@@ -20,10 +20,23 @@ runs:
       env:
         OPENCODE_API_KEY: ${{ inputs.opencode_api_key }}
       run: |
-        set -x
         git fetch origin ${{ github.event.pull_request.base.sha }}
         git diff ${{ github.event.pull_request.base.sha }}...HEAD > pr_diff.txt
-        opencode -p "Review this diff using the rules in ${{ github.action_path }}/AGENTS.md. Depth: ${{ inputs.review_depth }}" < pr_diff.txt > report.md
+        
+        echo "=== DEBUG INFO ==="
+        echo "Base SHA: ${{ github.event.pull_request.base.sha }}"
+        echo "Action Path: ${{ github.action_path }}"
+        echo "Review Depth: ${{ inputs.review_depth }}"
+        echo "API Key Length: ${#OPENCODE_API_KEY}"
+        echo "Diff File Size: $(stat -c%s "pr_diff.txt" 2>/dev/null || stat -f%z "pr_diff.txt") bytes"
+        echo "=================="
+
+        if [ ! -s pr_diff.txt ]; then
+          echo "Warning: pr_diff.txt is empty. No changes detected."
+          echo "No changes" > report.md
+        else
+          cat pr_diff.txt | opencode -p "Review this diff using the rules in ${{ github.action_path }}/AGENTS.md. Depth: ${{ inputs.review_depth }}" > report.md
+        fi
 
     - name: "Post PR Comment"
       shell: bash
