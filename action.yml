@@ -1,0 +1,30 @@
+name: 'Enterprise AI Architect'
+description: 'Automated architectural and security review using OpenCode Zen'
+inputs:
+  opencode_api_key:
+    description: 'The API key for OpenCode'
+    required: true
+  review_depth:
+    description: 'How deep to review (standard, deep, security)'
+    default: 'standard'
+runs:
+  using: 'composite'
+  steps:
+    - name: "Install OpenCode CLI"
+      shell: bash
+      run: |
+        curl -fsSL https://opencode.ai/install | bash
+        echo "OPENCODE_API_KEY=${{ inputs.opencode_api_key }}" >> $GITHUB_ENV
+
+    - name: "Analyze Diff"
+      shell: bash
+      run: |
+        git diff origin/${{ github.base_ref }}...HEAD > pr_diff.txt
+        opencode -p "Review this diff using the rules in AGENTS.md. Depth: ${{ inputs.review_depth }}" < pr_diff.txt > report.md
+
+    - name: "Post PR Comment"
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        gh pr comment ${{ github.event.pull_request.number }} --body-file report.md
