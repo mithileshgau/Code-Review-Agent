@@ -23,19 +23,25 @@ runs:
         git fetch origin ${{ github.event.pull_request.base.sha }}
         git diff ${{ github.event.pull_request.base.sha }}...HEAD > pr_diff.txt
         
-        echo "=== DEBUG INFO ==="
-        echo "Base SHA: ${{ github.event.pull_request.base.sha }}"
-        echo "Action Path: ${{ github.action_path }}"
+        RULES_PATH="${{ github.action_path }}/AGENTS.md"
+        
+        echo "=== DIAGNOSTICS ==="
+        echo "Check if rules exist: $(ls -la "$RULES_PATH" 2>/dev/null || echo "MISSING")"
         echo "Review Depth: ${{ inputs.review_depth }}"
-        echo "API Key Length: ${#OPENCODE_API_KEY}"
-        echo "Diff File Size: $(stat -c%s "pr_diff.txt" 2>/dev/null || stat -f%z "pr_diff.txt") bytes"
-        echo "=================="
+        echo "Diff Size: $(stat -c%s "pr_diff.txt" 2>/dev/null || echo "0") bytes"
+        echo "==================="
 
         if [ ! -s pr_diff.txt ]; then
-          echo "Warning: pr_diff.txt is empty. No changes detected."
-          echo "No changes" > report.md
+          echo "### AI Review: No changes detected." > report.md
         else
-          cat pr_diff.txt | opencode -p "Review this diff using the rules in ${{ github.action_path }}/AGENTS.md. Depth: ${{ inputs.review_depth }}" > report.md
+          # Capture both stdout and stderr to the report file for debugging
+          echo "Running review..."
+          opencode -p "Review this diff using the rules in $RULES_PATH. Depth: ${{ inputs.review_depth }}" < pr_diff.txt > report.md 2>&1 || {
+            echo "### ⚠️ OpenCode CLI Error" > error_header.md
+            cat error_header.md report.md > final_report.md
+            mv final_report.md report.md
+            echo "Opencode failed. See report.md for details."
+          }
         fi
 
     - name: "Post PR Comment"
