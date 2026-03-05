@@ -20,6 +20,7 @@ runs:
       shell: bash
       run: |
         set -x
+        git fetch origin ${{ github.event.pull_request.base.sha }}
         git diff ${{ github.event.pull_request.base.sha }}...HEAD > pr_diff.txt
         opencode -p "Review this diff using the rules in ${{ github.action_path }}/AGENTS.md. Depth: ${{ inputs.review_depth }}" < pr_diff.txt > report.md
 
