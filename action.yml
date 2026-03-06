@@ -42,7 +42,7 @@ runs:
         # Escape and call API
         JSON_PROMPT=$(echo "$FULL_PROMPT" | jq -Rs .)
         
-        RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent" \
+        RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" \
           -H "Content-Type: application/json" \
           -H "x-goog-api-key: ${GOOGLE_API_KEY}" \
           -d "{\"contents\": [{\"parts\": [{\"text\": $JSON_PROMPT}]}]}")
