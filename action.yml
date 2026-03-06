@@ -1,11 +1,11 @@
 name: 'Enterprise AI Architect'
-description: 'Automated architectural and security review using OpenCode Zen'
+description: 'Automated architectural and security review using Google Gemini'
 inputs:
   google_api_key:
     description: 'The API key for Google Gemini'
     required: true
   review_depth:
-    description: 'How deep to review (standard, deep, security)'
+    description: 'Review depth: standard, deep, security'
     default: 'standard'
 
 runs:
@@ -17,52 +17,40 @@ runs:
         GOOGLE_API_KEY: ${{ inputs.google_api_key }}
         GITHUB_TOKEN: ${{ github.token }}
       run: |
-        echo "Reading Agents definition..."
-        AGENT_RULES=$(cat ${{ github.action_path }}/AGENTS.md)
-        
-        echo "Fetching PR diff..."
-        # Get the diff between the PR branch and the base branch
-        # We assume the repo is checked out with fetch-depth: 0
-        PR_DIFF=$(git diff ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
-        
-        if [ -z "$PR_DIFF" ]; then
-          echo "No diff found. Skipping review."
-          exit 0
-        fi
-
-        echo "Preparing Prompt..."
-        PROMPT_CONTENT="You are a Senior Architect. Review the following git diff based on these rules:
-
-        $AGENT_RULES
-
-        Review Depth: ${{ inputs.review_depth }}
-
-        OUTPUT MUST BE A MARKDOWN TABLE with columns: File, Issue, Severity, Suggested Fix.
-
-        GIT DIFF:
-        $PR_DIFF"
-
-        # Escape the prompt for JSON
-        JSON_PROMPT=$(echo "$PROMPT_CONTENT" | jq -Rs .)
-
-        echo "Calling Gemini API..."
-        RESPONSE=$(curl -s "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GOOGLE_API_KEY}" \
-          -H 'Content-Type: application/json' \
-          -d "{
-            \"contents\": [{
-              \"parts\": [{
-                \"text\": $JSON_PROMPT
-              }]
-            }]
-          }")
-
-        REVIEW_TEXT=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text')
-
-        if [ "$REVIEW_TEXT" == "null" ] || [ -z "$REVIEW_TEXT" ]; then
-          echo "Error: Gemini API returned no content."
-          echo "Full Response: $RESPONSE"
+        if [ -z "$GOOGLE_API_KEY" ]; then
+          echo "Error: GOOGLE_API_KEY is missing."
           exit 1
         fi
 
-        echo "Posting Review Comment..."
+        AGENT_RULES=$(cat ${{ github.action_path }}/AGENTS.md)
+        PR_DIFF=$(git diff ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+        
+        if [ -z "$PR_DIFF" ]; then
+          echo "No diff found. Skipping."
+          exit 0
+        fi
+
+        JSON_PROMPT=$(cat <<EOF | jq -Rs .
+        You are a Senior Architect. Review this git diff based on these rules:
+        $AGENT_RULES
+        Review Depth: ${{ inputs.review_depth }}
+        OUTPUT: Markdown table (File, Issue, Severity, Suggested Fix).
+        DIFF:
+        $PR_DIFF
+        EOF
+        )
+
+        RESPONSE=$(curl -s "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent" \
+          -H 'Content-Type: application/json' \
+          -H "x-goog-api-key: ${GOOGLE_API_KEY}" \
+          -d "{\"contents\": [{\"parts\": [{\"text\": $JSON_PROMPT}]}]}")
+
+        REVIEW_TEXT=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // empty')
+
+        if [ -z "$REVIEW_TEXT" ]; then
+          echo "Error: Gemini API failure."
+          echo "Debug: $RESPONSE"
+          exit 1
+        fi
+
         gh pr comment ${{ github.event.pull_request.number }} --body "$REVIEW_TEXT"
