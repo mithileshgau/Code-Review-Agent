@@ -15,7 +15,12 @@ runs:
       env:
         OPENCODE_API_KEY: ${{ inputs.opencode_api_key }}
         GITHUB_TOKEN: ${{ github.token }}
+        DEBUG: 'true'
       with:
         model: opencode/big-pickle
-        # Point to the AGENTS.md file inside this Hub repository
-        prompt: "Use the 'Senior Architect' agent defined in ${{ github.action_path }}/AGENTS.md to review this PR. Provide the output as a markdown table with columns: File, Issue, Severity, Suggested Fix."
+        prompt: |
+          Review the provided code changes (diff) based on the "Senior Architect" persona definitions below.
+          The output MUST be a markdown table with columns: File, Issue, Severity, Suggested Fix.
+
+          ### Agent Persona & Rules:
+          $(cat ${{ github.action_path }}/AGENTS.md)
