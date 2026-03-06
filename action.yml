@@ -17,40 +17,60 @@ runs:
         GOOGLE_API_KEY: ${{ inputs.google_api_key }}
         GITHUB_TOKEN: ${{ github.token }}
       run: |
+        set -e
+        # 1. Validate Environment
         if [ -z "$GOOGLE_API_KEY" ]; then
-          echo "Error: GOOGLE_API_KEY is missing."
+          echo "::error::GOOGLE_API_KEY is missing. Check your repository secrets."
           exit 1
         fi
 
+        # 2. Gather Context
         AGENT_RULES=$(cat ${{ github.action_path }}/AGENTS.md)
-        PR_DIFF=$(git diff ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+        PR_DIFF=$(git diff ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} || echo "")
         
         if [ -z "$PR_DIFF" ]; then
-          echo "No diff found. Skipping."
+          echo "No code changes detected. Skipping review."
           exit 0
         fi
 
-        JSON_PROMPT=$(cat <<EOF | jq -Rs .
-        You are a Senior Architect. Review this git diff based on these rules:
-        $AGENT_RULES
-        Review Depth: ${{ inputs.review_depth }}
-        OUTPUT: Markdown table (File, Issue, Severity, Suggested Fix).
-        DIFF:
-        $PR_DIFF
-        EOF
-        )
+        # 3. Interprolate Prompt Template
+        # We use a temporary file to handle large diffs safely
+        TEMPLATE_FILE="${{ github.action_path }}/prompt_template.md"
+        PROMPT_FILE=$(mktemp)
+        
+        sed "s/{{REVIEW_DEPTH}}/${{ inputs.review_depth }}/g" "$TEMPLATE_FILE" > "$PROMPT_FILE"
+        
+        # Use a temporary python or perl trick to inject large strings without escaping hell
+        echo "$AGENT_RULES" > agents_tmp.txt
+        echo "$PR_DIFF" > diff_tmp.txt
+        
+        python3 -c "
+import sys
+with open('$PROMPT_FILE', 'r') as f: content = f.read()
+with open('agents_tmp.txt', 'r') as f: agents = f.read()
+with open('diff_tmp.txt', 'r') as f: diff = f.read()
+content = content.replace('{{AGENT_RULES}}', agents).replace('{{PR_DIFF}}', diff)
+with open('$PROMPT_FILE', 'w') as f: f.write(content)
+"
 
-        RESPONSE=$(curl -s "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" \
-          -H 'Content-Type: application/json' \
+        # 4. Prepare JSON Payload
+        JSON_PROMPT=$(jq -Rs . < "$PROMPT_FILE")
+
+        # 5. Call Gemini API (2.0 Flash is recommended for speed/cost in production)
+        echo "Requesting review from Gemini..."
+        RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent" \
+          -H "Content-Type: application/json" \
           -H "x-goog-api-key: ${GOOGLE_API_KEY}" \
           -d "{\"contents\": [{\"parts\": [{\"text\": $JSON_PROMPT}]}]}")
 
+        # 6. Parse and Post Result
         REVIEW_TEXT=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // empty')
 
         if [ -z "$REVIEW_TEXT" ]; then
-          echo "Error: Gemini API failure."
-          echo "Debug: $RESPONSE"
+          echo "::error::Gemini API failed to generate a review."
+          echo "Debug Details: $RESPONSE"
           exit 1
         fi
 
+        echo "Posting review to PR..."
         gh pr comment ${{ github.event.pull_request.number }} --body "$REVIEW_TEXT"
