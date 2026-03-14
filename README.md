@@ -1,15 +1,19 @@
-# Enterprise AI Architect - Central Hub
+# Code Review Agent - Central Hub
 
-Welcome to the **Central Hub** for managing organization's AI Developer Agents!
-
-This Central Hub is the primary way to manage AI agents at scale across multiple repositories. By centralizing our agent definitions here, we prevent "Prompt Drift" (where every repo has a slightly different, outdated version of the agent) and securely manage our OpenCode API keys.
-
-This repository exposes an **Enterprise AI Architect** via a GitHub Composite Action.
+This repository contains the **Code Review Agent**, an automated code review tool powered by the **Google Gemini API**. It provides architectural, security, and quality reviews directly within your GitHub Pull Requests. While designed for enterprise-scale management, it is a focused agent for high-quality, AI-driven code reviews.
 
 ## What's in this Hub?
 
 1. **`action.yml`**: The interface for our agent. It calls the Google Gemini API, gathers the PR diff, executes the review, and posts the results back to the PR using the GitHub CLI.
 2. **`AGENTS.md`**: The "brain" of the agent. It defines the persona (Senior Architect), the task (reviewing git diffs for architectural violations, code quality, and security), and formatting rules. All consuming repositories will use these exact rules.
+
+---
+
+## Example Review
+
+Here is an example of the feedback provided by the **Code Review Agent**:
+
+![Code Review Example](Review-Comment.png)
 
 ---
 
@@ -53,7 +57,7 @@ jobs:
           # Important: Fetch depth 0 to ensure the diff can be generated properly
           fetch-depth: 0 
 
-      - name: Run Enterprise AI Architect
+      - name: Run Code Review Agent
         # Replace 'your-organization-name/Code-Review-Agent' with the actual org/repo name of this Hub
         uses: your-organization-name/Code-Review-Agent@main
         with:

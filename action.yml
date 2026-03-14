@@ -1,4 +1,4 @@
-name: 'Enterprise AI Architect'
+name: 'Code Review Agent'
 description: 'Automated architectural and security review using Google Gemini'
 inputs:
   google_api_key:
